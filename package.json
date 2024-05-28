@@ -41,7 +41,7 @@
   },
   "name": "nextjs-dashboard",
   "module": "index.ts",
-  "type": "module",
+  "type": "commonjs",
   "peerDependencies": {
     "typescript": "^5.0.0"
   }
