@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { signIn } from '@/auth';
+import { createUser, signIn } from '@/auth';
 import { AuthError } from 'next-auth';
 
 const FormSchema = z.object({
@@ -80,17 +80,17 @@ export async function updateInvoice(
     amount: formData.get('amount'),
     status: formData.get('status'),
   });
- 
+
   if (!validatedFields.success) {
     return {
       errors: validatedFields.error.flatten().fieldErrors,
       message: 'Missing Fields. Failed to Update Invoice.',
     };
   }
- 
+
   const { customerId, amount, status } = validatedFields.data;
   const amountInCents = amount * 100;
- 
+
   try {
     await sql`
       UPDATE invoices
@@ -100,7 +100,7 @@ export async function updateInvoice(
   } catch (error) {
     return { message: 'Database Error: Failed to Update Invoice.' };
   }
- 
+
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
@@ -134,4 +134,57 @@ export async function authenticate(
     }
     throw error;
   }
+}
+
+export type RegisterState = {
+  errors?: {
+    username?: string[];
+    email?: string[];
+    password?: string[];
+    confirmPassword? : string[];
+  };
+  message?: string | null;
+};
+
+export async function register(
+  prevState: RegisterState,
+  formData: FormData,
+) {
+  const schema = z
+    .object({
+      username: z.string().min(1, 'Username is required'),
+      email: z.string().email('Invalid email address'),
+      password: z
+        .string()
+        .min(6, 'Password must be at least 6 characters long'),
+      confirmPassword: z
+        .string()
+        .min(6, 'Confirm password must be at least 6 characters long'),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: "Passwords don't match",
+      path: ['confirmPassword'], // specify which field causes the error
+    });
+
+  const parsedData = schema.safeParse({
+    username: formData.get('username'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+    confirmPassword: formData.get('confirm-password'),
+  });
+  if (!parsedData.success) {
+    return {
+      errors: parsedData.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Register User.',
+    };
+  }
+  try {
+      const { username, email, password } = parsedData.data;
+      await createUser(username, email, password);
+  } catch (error) {
+    return { message: `${error}` };
+  }
+
+  revalidatePath('/login');
+  redirect('/login');
 }

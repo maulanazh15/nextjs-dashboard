@@ -16,6 +16,16 @@ async function getUser(email: string): Promise<User | undefined> {
     throw new Error('Failed to fetch user.');
   }
 }
+
+export async function createUser(username: string, email: string, password: string): Promise<User> {
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const { rows } = await sql<User>`
+    INSERT INTO users (name, email, password) 
+    VALUES (${username}, ${email}, ${hashedPassword})
+    RETURNING *;
+  `;
+  return rows[0];
+}
  
 export const { auth, signIn, signOut } = NextAuth({
   ...authConfig,
